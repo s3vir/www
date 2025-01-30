@@ -1,75 +1,94 @@
 <?php
-// Połączenie z bazą danych
-$mysqli = new mysqli("localhost", "root", "", "moja_strona");
+include('cfg.php');
+error_reporting(E_ALL ^ E_NOTICE ^ E_WARNING);
 
-if ($mysqli->connect_error) {
-    die("Połączenie nieudane: " . $mysqli->connect_error);
+// Domyślna strona ładowana na start
+$strona = 'html/about.html';
+
+// Obsługa przekierowań na podstawie parametru idp
+if (isset($_GET['idp'])) {
+    switch ($_GET['idp']) {
+        case 'about':
+            $strona = 'html/about.html';
+            break;
+        case 'contact':
+            $strona = 'html/contact.html';
+            break;
+        case 'gallery':
+            $strona = 'html/gallery.html';
+            break;
+        case 'future':
+            $strona = 'html/future.html';
+            break;
+        case 'films':
+            $strona = 'html/films.html';
+            break;
+        default:
+            $strona = 'html/about.html'; // Strona domyślna, jeśli podano błędny parametr
+    }
 }
-
-// Pobranie wartości idp z URL
-$idp = $_GET['idp'] ?? 'about';
-
-// Przygotowanie zapytania SQL
-$query = "SELECT page_content, page_image FROM page_list WHERE page_title = ? AND status = 1";
-$stmt = $mysqli->prepare($query);
-$stmt->bind_param("s", $idp);
-$stmt->execute();
-$result = $stmt->get_result();
-
-// Sprawdzenie, czy zapytanie zwróciło wyniki
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $page_content = $row['page_content'];
-    $page_image = $row['page_image'];
-} else {
-    $page_content = "<h2>Błąd 404: Strona nie została znaleziona</h2>";
-    $page_image = "img/404.png"; // Opcjonalnie dodaj obraz błędu
-}
-
-// Zamknięcie połączenia z bazą danych
-$stmt->close();
-$mysqli->close();
 ?>
+
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historia Komputerów</title>
+    <title>Dynamiczna Strona</title>
     <link rel="stylesheet" href="css/styles.css">
     <script src="js/kolorujtlo.js" defer></script>
     <script src="js/timedate.js" defer></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        nav {
+            background-color: #007bff;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px 15px;
+            border-radius: 5px;
+            transition: background-color 0.3s ease;
+        }
+        nav a:hover {
+            background-color: #0056b3;
+        }
+        main {
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>Historia Komputerów</h1>
-    </header>
-
+    <!-- Nawigacja -->
     <nav>
-        <ul>
-            <li><a href="index.php">Home</a></li>
+        <ul class="menu">
             <li><a href="index.php?idp=about">Historia</a></li>
-            <li><a href="index.php?idp=gallery">Galeria Komputerów</a></li>
-            <li><a href="index.php?idp=services">Programy Komputerowe</a></li>
-            <li><a href="index.php?idp=future">Przyszłość</a></li>
             <li><a href="index.php?idp=contact">Kontakt</a></li>
+            <li><a href="index.php?idp=gallery">Galeria Komputerów</a></li>
+            <li><a href="index.php?idp=future">Przyszłość</a></li>
             <li><a href="index.php?idp=films">Filmy</a></li>
+            <li><a href="admin/admin.php">Admin</a></li>
+            <li><a href="sklep.php">Sklep</a></li>
         </ul>
     </nav>
 
+    <!-- Dynamiczna zawartość strony -->
     <main>
-        <!-- Wyświetlanie treści i obrazu -->
-        <?php
-        echo $page_content;
-        if (!empty($page_image)) {
-            echo '<img src="' . htmlspecialchars($page_image) . '" alt="Obraz strony" style="max-width:100%; height:auto;">';
-        }
-        ?>
+        <?php include($strona); ?>
     </main>
-
-    <footer>
-        <p>&copy; Bartosz Koperski</p>
-    </footer>
 </body>
 </html>

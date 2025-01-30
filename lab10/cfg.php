@@ -1,11 +1,10 @@
 <?php
-$dbhost = 'localhost';
-$dbuser = 'root';
-$dbpass = '';
-$baza = 'moja_strona';
+define('DB_HOST', 'localhost'); // Host bazy danych
+define('DB_NAME', 'moja_strona'); // Nazwa bazy danych
+define('DB_USER', 'root'); // Użytkownik bazy danych
+define('DB_PASS', ''); // Hasło do bazy danych (jeśli brak hasła, zostaw puste)
 
-$link = mysqli_connect($dbhost, $dbuser, $dbpass, $baza);
-if (!$link) {
-    echo '<b>przerwane połączenie</b>';
-}
+// Dane logowania do panelu administratora
+$admin_username = 'admin';
+$admin_password = 'admin123';
 ?>

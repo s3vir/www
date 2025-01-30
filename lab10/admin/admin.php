@@ -1,213 +1,162 @@
+<?php
+// Ustawienia bazy danych
+include '../cfg.php';
 
+// Funkcja sprawdzająca login
+function verifyLogin($username, $password, $conn) {
+    $stmt = $conn->prepare("SELECT * FROM admin_users WHERE username = ? AND password = ?");
+    $stmt->bind_param("ss", $username, $password);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $stmt->close();
+    return $result->num_rows > 0;
+}
+
+// Funkcja resetowania hasła
+function sendPasswordResetEmail($email, $conn) {
+    $stmt = $conn->prepare("SELECT password FROM admin_users WHERE email = ?");
+    $stmt->bind_param("s", $email);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    if ($result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $password = $row['password'];
+
+        $to = $email;
+        $subject = "Resetowanie hasła - Panel Administracyjny";
+        $message = "Twoje hasło to: " . $password;
+        $headers = "From: no-reply@mojprojekt.pl\r\n";
+        $headers .= "Content-Type: text/plain; charset=UTF-8\r\n";
+
+        if (mail($to, $subject, $message, $headers)) {
+            return "Hasło zostało wysłane na podany adres email.";
+        } else {
+            return "Nie udało się wysłać wiadomości e-mail.";
+        }
+    } else {
+        return "Błąd autoryzacji: Podany adres email nie istnieje w bazie danych.";
+    }
+}
+
+// Obsługa formularza logowania
+$conn_status = "<p style='color: green;'>Połączenie z bazą danych nawiązane pomyślnie!</p>";
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+    if ($conn->connect_error) {
+        $conn_status = "<p style='color: red;'>Błąd połączenia z bazą danych: " . $conn->connect_error . "</p>";
+    } else {
+        if (isset($_POST['reset_email'])) {
+            $reset_email = $_POST['reset_email'];
+            $reset_message = sendPasswordResetEmail($reset_email, $conn);
+        } else {
+            $username = $_POST['username'];
+            $password = $_POST['password'];
+
+            if (verifyLogin($username, $password, $conn)) {
+                session_start();
+                $_SESSION['logged_in'] = true;
+                header("Location: admin_dashboard.php");
+                exit;
+            } else {
+                $login_error = "Niepoprawna nazwa użytkownika lub hasło.";
+            }
+        }
+        $conn->close();
+    }
+}
+?>
 <!DOCTYPE html>
 <html lang="pl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel Administracyjny</title>
-    <link rel="stylesheet" href="../css/style.css">
+    <title>Logowanie - Panel Administracyjny</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background-color: #ffffff;
+            padding: 20px;
+            border: 1px solid #dee2e6;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            margin-bottom: 20px;
+        }
+        .login-container h1 {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #343a40;
+        }
+        .login-container form {
+            display: flex;
+            flex-direction: column;
+        }
+        .login-container input[type="text"],
+        .login-container input[type="password"],
+        .login-container input[type="email"] {
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            outline: none;
+        }
+        .login-container button {
+            padding: 10px;
+            background-color: #007bff;
+            color: #ffffff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .login-container button:hover {
+            background-color: #0056b3;
+        }
+        .login-container .error {
+            color: red;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .connection-status {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+        .reset-message {
+            text-align: center;
+            color: green;
+            margin-bottom: 10px;
+        }
+    </style>
 </head>
 <body>
-
-<?php
-session_start();
-require '../cfg.php';
-
-// Funkcja hashowania hasła (dodatkowe zabezpieczenie)
-function hashPassword($password) {
-    return password_hash($password, PASSWORD_DEFAULT);
-}
-
-// Funkcja weryfikacji hasła
-function verifyPassword($input_password, $stored_hash) {
-    return password_verify($input_password, $stored_hash);
-}
-
-// Funkcja generowania tokenu resetowania hasła
-function generateResetToken() {
-    return bin2hex(random_bytes(50));
-}
-
-function FormularzLogowania($error = '') {
-    echo "<h2>Logowanie Administratora</h2>";
-    if ($error) echo "<p style='color: red;'>$error</p>";
-    echo "
-        <form method='POST'>
-            <label>Login: <input type='text' name='login' required></label><br>
-            <label>Hasło: <input type='password' name='password' required></label><br>
-            <input type='submit' value='Zaloguj'>
+    <div class="connection-status">
+        <?php if (isset($conn_status)) { echo $conn_status; } ?>
+    </div>
+    <div class="login-container">
+        <h1>Logowanie</h1>
+        <?php if (isset($login_error)) { echo "<p class='error'>$login_error</p>"; } ?>
+        <?php if (isset($reset_message)) { echo "<p class='reset-message'>$reset_message</p>"; } ?>
+        <form method="post">
+            <input type="text" name="username" placeholder="Nazwa użytkownika" required>
+            <input type="password" name="password" placeholder="Hasło" required>
+            <button type="submit">Zaloguj się</button>
         </form>
-    ";
-}
-
-function Wyloguj() {
-    session_start();
-    session_unset();
-    session_destroy();
-    header("Location: {$_SERVER['PHP_SELF']}");
-    exit;
-}
-
-// Połączenie z bazą danych
-$db = new mysqli("localhost", "root", "", "moja_strona");
-if ($db->connect_error) {
-    die("Błąd połączenia z bazą danych: " . $db->connect_error);
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $loginInput = trim($_POST['login'] ?? '');
-    $passwordInput = trim($_POST['password'] ?? '');
-
-    $stmt = $db->prepare("SELECT password FROM administrators WHERE login = ?");
-    $stmt->bind_param("s", $loginInput);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    if ($result->num_rows > 0) {
-        $admin = $result->fetch_assoc();
-        echo "Podano login: $loginInput<br>";
-        echo "Podano hasło: $passwordInput<br>";
-        echo "Hash w bazie: " . $admin['password'] . "<br>";
-
-if (password_verify($passwordInput, $admin['password'])) {
-    echo "Hasło jest poprawne.<br>";
-} else {
-    echo "Hasło jest niepoprawne.<br>";
-    exit;
-}
-
-        if (verifyPassword($passwordInput, $admin['password'])) {
-            $_SESSION['logged_in'] = true;
-            $_SESSION['admin_login'] = $loginInput;
-        } else {
-            FormularzLogowania("Nieprawidłowe dane logowania.");
-            exit;
-        }
-    } else {
-        FormularzLogowania("Nieprawidłowe dane logowania.");
-        exit;
-    }
-}
-
-if (!isset($_SESSION['logged_in']) || !$_SESSION['logged_in']) {
-    FormularzLogowania();
-    exit;
-}
-
-// Funkcja wyświetlania listy podstron
-function ListaPodstron($db) {
-    $query = "SELECT id, page_title FROM page_list";
-    $result = $db->query($query);
-    echo "<h2>Lista podstron</h2>";
-    echo "<a href='?action=add'>Dodaj nową podstronę</a><br><br>";
-    echo "<table border='1'><tr><th>ID</th><th>Tytuł</th><th>Akcje</th></tr>";
-    while ($row = $result->fetch_assoc()) {
-        echo "<tr>
-            <td>{$row['id']}</td>
-            <td>{$row['page_title']}</td>
-            <td>
-                <a href='?action=edit&id={$row['id']}'>Edytuj</a> | 
-                <a href='?action=delete&id={$row['id']}'>Usuń</a>
-            </td>
-        </tr>";
-    }
-    echo "</table>";
-}
-
-// Funkcja edycji podstrony
-function EdytujPodstrone($db, $id) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $title = $_POST['page_title'];
-        $content = $_POST['page_content'];
-        $status = isset($_POST['status']) ? 1 : 0;
-
-        $stmt = $db->prepare("UPDATE page_list SET page_title = ?, page_content = ?, status = ? WHERE id = ? LIMIT 1");
-        $stmt->bind_param("ssii", $title, $content, $status, $id);
-        $stmt->execute();
-
-        echo "<p>Podstrona została zaktualizowana.</p>";
-    } else {
-        $stmt = $db->prepare("SELECT page_title, page_content, status FROM page_list WHERE id = ? LIMIT 1");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_assoc();
-
-        echo "
-        <h2>Edytuj podstronę</h2>
-        <form method='POST'>
-            <label>Tytuł: <input type='text' name='page_title' value='{$result['page_title']}'></label><br>
-            <label>Treść: <textarea name='page_content'>{$result['page_content']}</textarea></label><br>
-            <label>Aktywna: <input type='checkbox' name='status' " . ($result['status'] ? 'checked' : '') . "></label><br>
-            <input type='submit' value='Zapisz zmiany'>
-            <a href='?action=list'><button type='button'>Anuluj</button></a>
-        </form>";
-    }
-}
-
-// Funkcja dodawania nowej podstrony
-function DodajNowaPodstrone($db) {
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $title = $_POST['page_title'];
-        $content = $_POST['page_content'];
-        $status = isset($_POST['status']) ? 1 : 0;
-
-        $stmt = $db->prepare("INSERT INTO page_list (page_title, page_content, status) VALUES (?, ?, ?)");
-        $stmt->bind_param("ssi", $title, $content, $status);
-        $stmt->execute();
-
-        echo "<p>Nowa podstrona została dodana.</p>";
-        echo "<a href='?action=list'>Powrót do listy</a>";
-    } else {
-        echo "
-        <h2>Dodaj nową podstronę</h2>
-        <form method='POST'>
-            <label>Tytuł: <input type='text' name='page_title'></label><br>
-            <label>Treść: <textarea name='page_content'></textarea></label><br>
-            <label>Aktywna: <input type='checkbox' name='status'></label><br>
-            <input type='submit' value='Dodaj podstronę'>
-            <a href='?action=list'><button type='button'>Anuluj</button></a>
-        </form>";
-    }
-}
-
-// Funkcja usuwania podstrony
-function UsunPodstrone($db, $id) {
-    $stmt = $db->prepare("DELETE FROM page_list WHERE id = ? LIMIT 1");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-
-    echo "<p>Podstrona została usunięta.</p>";
-    echo "<a href='?action=list'>Powrót do listy</a>";
-}
-
-// Obsługa działań
-if (isset($_GET['action'])) {
-    switch ($_GET['action']) {
-        case 'list':
-            ListaPodstron($db);
-            break;
-        case 'edit':
-            EdytujPodstrone($db, $_GET['id']);
-            break;
-        case 'delete':
-            UsunPodstrone($db, $_GET['id']);
-            break;
-        case 'add':
-            DodajNowaPodstrone($db);
-            break;
-        case 'logout':
-            Wyloguj();
-            break;
-        default:
-            echo "<p>Nieznane działanie.</p>";
-    }
-} else {
-    echo "<div><a href='?action=list'>Lista podstron</a></div>";
-}
-echo "<div><a href='?action=logout'>Wyloguj</a></div>";
-?>
-
-<button style="margin-top: 10px;padding:10px 15px;" onclick="window.location.href='../index.php?idp=glowna'">Powrót</button>
-
+        <form method="post">
+            <h1>Resetowanie hasła</h1>
+            <input type="email" name="reset_email" placeholder="Adres email" required>
+            <button type="submit">Resetuj hasło</button>
+        </form>
+    </div>
 </body>
 </html>
